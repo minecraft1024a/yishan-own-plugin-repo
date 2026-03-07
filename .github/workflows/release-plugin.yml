@@ -127,7 +127,7 @@ jobs:
         run: |
           echo "📝 生成 Release Notes..."
           
-          cat > release_notes.md << 'EOF'
+          cat >> release_notes.md << EOF
           # MoFox Plugins Release ${{ steps.version.outputs.version }}
           
           本次发布包含以下插件的最新版本：
@@ -162,7 +162,7 @@ jobs:
             cd ..
           done
           
-          cat >> release_notes.md << 'EOF'
+          cat >> release_notes.md << EOF
           
           ---
           
