@@ -25,7 +25,8 @@ jobs:
       
       - name: 安装 mpdt
         run: |
-          uv pip install --system mofox-plugin-toolkit
+          uv pip install --system mofox-plugin-dev-toolkit
+
       
       - name: 发现所有插件
         id: discover
