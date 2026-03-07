@@ -1,0 +1,32 @@
+# web_search_tool - 自动生成的配置文件
+# 一个用于在互联网上搜索信息的工具
+
+# 插件基本信息
+[plugin]
+
+# 插件名称
+name = "WEB_SEARCH_PLUGIN"
+
+# 插件版本
+version = "1.0.0"
+
+# 是否启用插件
+enabled = true
+
+
+# 注意：EXA相关配置和组件设置已迁移到机器人主配置文件 (bot_config.toml) 中
+# 请在主配置文件的 [exa] 和 [web_search] 部分进行配置
+
+# EXA相关配置 - 已迁移到主配置文件 [exa] 部分
+# [exa]
+# exa的API密钥
+# api_key = "None"
+
+# 组件设置 - 已迁移到主配置文件 [web_search] 部分  
+# [components]
+# 是否启用联网搜索tool
+# enable_web_search_tool = true
+# 是否启用URL解析tool
+# enable_url_tool = true
+
+

@@ -1,0 +1,40 @@
+{
+    "name": "astrbot",
+    "version": "1.0.0",
+    "description": "AstrBot 论坛集成插件，支持自动回复和主动发帖",
+    "author": "YiShan",
+    "dependencies": {
+        "plugins": [],
+        "components": []
+    },
+    "include": [
+        {
+            "component_type": "service",
+            "component_name": "astrbot_api",
+            "dependencies": []
+        },
+        {
+            "component_type": "adapter",
+            "component_name": "astrbot_adapter",
+            "dependencies": [
+                "astrbot:service:astrbot_api"
+            ]
+        },
+        {
+            "component_type": "chatter",
+            "component_name": "astrbot_chatter",
+            "dependencies": [
+                "astrbot:service:astrbot_api"
+            ]
+        },
+        {
+            "component_type": "scheduled_task",
+            "component_name": "post_scheduler",
+            "dependencies": [
+                "astrbot:service:astrbot_api"
+            ]
+        }
+    ],
+    "entry_point": "plugin.py",
+    "min_core_version": "1.0.0"
+}
