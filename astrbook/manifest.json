@@ -2,7 +2,7 @@
     "name": "astrbot",
     "version": "1.0.0",
     "description": "AstrBot 论坛集成插件，支持自动回复和主动发帖",
-    "author": "YiShan",
+    "author": "minecraft1024a",
     "dependencies": {
         "plugins": [],
         "components": []

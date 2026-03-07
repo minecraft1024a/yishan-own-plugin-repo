@@ -2,7 +2,7 @@
     "name": "web_search_tool",
     "version": "1.0.0",
     "description": "网络搜索工具插件，支持多种搜索引擎（Exa/Tavily/Metaso/DuckDuckGo/Bing/SearXNG/Serper）",
-    "author": "YiShan",
+    "author": "minecraft1024a",
     "homepage": "https://github.com/MoFox-Studio/Neo-MoFox",
     "keywords": [
         "search",

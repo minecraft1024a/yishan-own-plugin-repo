@@ -163,3 +163,5 @@ AI：辛苦了！【调用 ai_emoji_selector，context_hint="安慰用户疲惫"
 ⚠️ **性能考虑**：每次调用会进行数据库查询和 LLM 推理，建议避免频繁调用。
 
 ⚠️ **文件路径**：表情包文件默认存储在 `data/media_cache/emojis/` 目录。
+
+本项目基于 GPL-v3.0 许可证开源,详见 [LICENSE](./LICENSE) 文件。

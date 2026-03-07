@@ -2,7 +2,7 @@
     "name": "ai_emoji_sender",
     "version": "1.0.0",
     "description": "AI 智能表情包选择器 - 从表情包库中随机抽取候选项，让 AI 根据场景智能选择发送",
-    "author": "YiShan",
+    "author": "minecraft1024a",
     "dependencies": {
         "plugins": [],
         "components": []

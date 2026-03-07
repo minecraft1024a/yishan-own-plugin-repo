@@ -1,0 +1,275 @@
+name: Build and Release All Plugins
+
+on:
+  workflow_dispatch:  # 手动触发，无需任何参数
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: 安装 uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      
+      - name: 安装 mpdt
+        run: |
+          uv pip install --system mofox-plugin-toolkit
+      
+      - name: 发现所有插件
+        id: discover
+        run: |
+          echo "🔍 扫描插件目录..."
+          
+          # 查找所有包含 manifest.json 的目录（排除隐藏目录和特殊目录）
+          PLUGINS=$(find . -maxdepth 2 -name "manifest.json" -not -path "*/\.*" -not -path "*/node_modules/*" | \
+            sed 's|^\./||' | \
+            sed 's|/manifest.json$||')
+          
+          echo "plugins<<EOF" >> $GITHUB_OUTPUT
+          echo "$PLUGINS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "📦 发现插件:"
+          echo "$PLUGINS"
+          echo ""
+          PLUGIN_COUNT=$(echo "$PLUGINS" | wc -l)
+          echo "总计: ${PLUGIN_COUNT} 个插件"
+      
+      - name: 生成 Release 版本号
+        id: version
+        run: |
+          # 使用日期和序号作为版本号：v2026.03.07.001
+          DATE_VERSION=$(date -u '+%Y.%m.%d')
+          
+          # 查找今天已有的 Release 数量
+          EXISTING=$(gh release list --limit 50 --json tagName | \
+            jq -r '.[].tagName' | \
+            grep "^v${DATE_VERSION}\." | \
+            wc -l || echo "0")
+          
+          SEQUENCE=$((EXISTING + 1))
+          VERSION="v${DATE_VERSION}.$(printf '%03d' $SEQUENCE)"
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📅 Release 版本: $VERSION"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 检查 Release 是否已存在
+        id: check_release
+        run: |
+          if gh release view "${{ steps.version.outputs.version }}" &>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Release ${{ steps.version.outputs.version }} 已存在"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✓ Release ${{ steps.version.outputs.version }} 不存在，可以创建"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 打包所有插件
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          mkdir -p dist
+          
+          echo "📦 开始打包所有插件..."
+          echo ""
+          
+          # 读取插件列表并逐个打包
+          echo "${{ steps.discover.outputs.plugins }}" | while IFS= read -r plugin; do
+            if [ -z "$plugin" ]; then
+              continue
+            fi
+            
+            if [ ! -d "$plugin" ] || [ ! -f "$plugin/manifest.json" ]; then
+              echo "⚠️ 跳过无效插件目录: $plugin"
+              continue
+            fi
+            
+            echo "📦 打包插件: $plugin"
+            cd "$plugin"
+            
+            # 读取插件版本
+            PLUGIN_VERSION=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])" 2>/dev/null || echo "unknown")
+            echo "  版本: $PLUGIN_VERSION"
+            
+            # 使用 mpdt 打包
+            mpdt build --output ../dist --with-docs --format mfp
+            
+            cd ..
+            echo "  ✓ 完成"
+            echo ""
+          done
+          
+          echo "📦 所有插件打包完成！"
+          echo ""
+          echo "生成的文件："
+          ls -lh dist/
+      
+      - name: 准备 Release 信息
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          echo "📝 生成 Release Notes..."
+          
+          cat > release_notes.md << 'EOF'
+          # MoFox Plugins Release ${{ steps.version.outputs.version }}
+          
+          本次发布包含以下插件的最新版本：
+          
+          ## 📦 插件列表
+          
+          EOF
+          
+          # 遍历所有插件，收集信息
+          echo "${{ steps.discover.outputs.plugins }}" | while IFS= read -r plugin; do
+            if [ -z "$plugin" ] || [ ! -f "$plugin/manifest.json" ]; then
+              continue
+            fi
+            
+            cd "$plugin"
+            
+            NAME=$(python3 -c "import json; m=json.load(open('manifest.json')); print(m.get('name', '$plugin'))" 2>/dev/null || echo "$plugin")
+            VERSION=$(python3 -c "import json; m=json.load(open('manifest.json')); print(m.get('version', 'unknown'))" 2>/dev/null || echo "unknown")
+            DESC=$(python3 -c "import json; m=json.load(open('manifest.json')); print(m.get('description', '无描述'))" 2>/dev/null || echo "无描述")
+            AUTHOR=$(python3 -c "import json; m=json.load(open('manifest.json')); print(m.get('author', '未知'))" 2>/dev/null || echo "未知")
+            
+            cat >> ../release_notes.md << PLUGIN_EOF
+          ### 🔌 ${NAME} (v${VERSION})
+          
+          - **目录**: \`${plugin}\`
+          - **作者**: ${AUTHOR}
+          - **描述**: ${DESC}
+          - **文档**: [README.md](${{ github.server_url }}/${{ github.repository }}/blob/main/${plugin}/README.md)
+          
+          PLUGIN_EOF
+            
+            cd ..
+          done
+          
+          cat >> release_notes.md << 'EOF'
+          
+          ---
+          
+          ## 📥 安装方法
+          
+          1. 下载对应插件的 `.mfp` 文件
+          2. 将文件放入 Neo-MoFox 的 `plugins` 目录
+          3. 重启 Neo-MoFox 或重新加载插件
+          
+          ## ℹ️ 构建信息
+          
+          - **构建时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          - **Commit**: `${{ github.sha }}`
+          - **Workflow**: `${{ github.workflow }}`
+          
+          EOF
+          
+          echo "✓ Release Notes 生成完成"
+          echo ""
+          cat release_notes.md
+      
+      - name: 创建 Git Tag
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          TAG="${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release all plugins $TAG"
+          git push origin "$TAG"
+          echo "✓ 创建并推送 Tag: $TAG"
+      
+      - name: 创建 GitHub Release
+        if: steps.check_release.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: MoFox Plugins ${{ steps.version.outputs.version }}
+          body_path: release_notes.md
+          files: dist/*.mfp
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 清理旧的 Releases
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          MAX_RELEASES=5
+          echo "🗑️ 清理旧的 Releases，保留最近 ${MAX_RELEASES} 个"
+          
+          # 获取所有 releases（按创建时间排序）
+          RELEASES=$(gh release list --limit 100 --json tagName,createdAt | \
+            jq -r '.[].tagName' | \
+            tail -n +$((${MAX_RELEASES} + 1)))
+          
+          if [ -z "$RELEASES" ]; then
+            echo "✓ 没有需要删除的旧 Release"
+          else
+            echo "将删除以下 Release:"
+            echo "$RELEASES"
+            echo ""
+            
+            # 删除旧的 releases 和对应的 tags
+            echo "$RELEASES" | while read -r tag; do
+              if [ -n "$tag" ]; then
+                echo "正在删除 Release: $tag"
+                gh release delete "$tag" --yes 2>/dev/null || echo "  ⚠️ 删除 Release 失败"
+                
+                echo "正在删除 Tag: $tag"
+                git push origin --delete "$tag" 2>/dev/null || echo "  ⚠️ 删除 Tag 失败"
+                echo ""
+              fi
+            done
+            
+            echo "✓ 清理完成"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 构建摘要
+        if: always()
+        run: |
+          echo "## 📦 插件构建与发布" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.check_release.outputs.exists }}" == "true" ]; then
+            echo "⚠️ **Release 已存在，跳过构建**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- Release: \`${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **构建并发布成功**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📋 发布信息" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- **Release 版本**: \`${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **发布时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+            echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            echo "### 🔌 包含的插件" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # 列出所有插件
+            echo "${{ steps.discover.outputs.plugins }}" | while IFS= read -r plugin; do
+              if [ -n "$plugin" ] && [ -f "$plugin/manifest.json" ]; then
+                VERSION=$(python3 -c "import json; print(json.load(open('$plugin/manifest.json'))['version'])" 2>/dev/null || echo "unknown")
+                echo "- \`$plugin\` (v$VERSION)" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🔗 **[查看 Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ steps.version.outputs.version }})**" >> $GITHUB_STEP_SUMMARY
+          fi

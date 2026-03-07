@@ -51,4 +51,4 @@ max_daily_posts = 3  # 每日最多3篇
 
 ## 许可证
 
-MIT License
+GPL V3
