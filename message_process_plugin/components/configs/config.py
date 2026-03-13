@@ -71,16 +71,6 @@ class Config(BaseConfig):
             tag="text",
             order=2
         )
-        max_segment_length: int = Field(
-            default=500,
-            description="单段最大字符数（超过则强制分段，0 表示不限制）",
-            label="单段最大字符数",
-            ge=0,
-            le=2000,
-            tag="text",
-            hint="0 表示不限制",
-            order=3
-        )
         preserve_punctuation: bool = Field(
             default=True,
             description="是否保留标点符号在句末",
@@ -152,7 +142,7 @@ class Config(BaseConfig):
         """跳过规则配置节"""
 
         skip_message_id_prefixes: list[str] = Field(
-            default=["action_kfc_reply_"],
+            default=["action_kfc_reply_","api_"],
             description=(
                 "message_id 前缀白名单：以列表中任意前缀开头的消息会被跳过分段。"
                 "用于声明「已自行管理分段节奏」的 action，"

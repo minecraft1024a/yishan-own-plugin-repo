@@ -3,6 +3,7 @@
     "version": "1.0.0",
     "description": "网络搜索工具插件，支持多种搜索引擎（Exa/Tavily/Metaso/DuckDuckGo/Bing/SearXNG/Serper）",
     "author": "minecraft1024a",
+    "license": "GPL-3.0",
     "homepage": "https://github.com/MoFox-Studio/Neo-MoFox",
     "keywords": [
         "search",
@@ -22,7 +23,12 @@
         "components": [],
         "python_packages": [
             "httpx",
-            "aiohttp"
+            "aiohttp",
+            "tavily-python",
+            "exa-py",
+            "asyncddgs",
+            "orjson",
+            "beautifulsoup4"
         ]
     },
     "include": [

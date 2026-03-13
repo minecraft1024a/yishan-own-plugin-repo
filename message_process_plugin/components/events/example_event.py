@@ -9,7 +9,6 @@ Created at: 2026-02-24
 """
 
 import asyncio
-import re
 from typing import Any, cast
 
 from src.app.plugin_system.api.log_api import get_logger
@@ -61,7 +60,7 @@ class SegmentSenderEvent(BaseEventHandler):
         Returns:
             tuple[EventDecision, dict[str, Any]]:
                 - (STOP, params)   — 成功分段发送，拦截原始消息
-                - (SUCCESS, params) — 不满足分段条件，放行原始消息
+                - (SUCCESS, params) — 无需分段或分段失败，放行原始消息
         """
         try:
             config = self._get_config()
@@ -75,17 +74,49 @@ class SegmentSenderEvent(BaseEventHandler):
                 logger.warning("事件参数中缺少 message，放行原始消息")
                 return EventDecision.SUCCESS, params
 
-            # 检查是否满足分段条件
-            if not self._should_handle(message, config):
+            # 仅检查消息类型和基本内容
+            if message.message_type != MessageType.TEXT:
+                return EventDecision.SUCCESS, params
+                
+            content = message.content
+            if not content or not isinstance(content, str) or not content.strip():
+                return EventDecision.SUCCESS, params
+
+            # 白名单前缀检查：跳过已自行管理分段节奏的 action / 通过sendapi发送的分段消息
+            msg_id = str(message.message_id or "")
+            for prefix in config.skipping.skip_message_id_prefixes:
+                if msg_id.startswith(prefix):
+                    if config.general.debug_mode:
+                        logger.debug(f"跳过白名单前缀消息: message_id={msg_id}, prefix={prefix}")
+                    return EventDecision.SUCCESS, params
+
+            # 直接尝试分段
+            content_str = str(content)
+            prot = config.protection
+            seg = config.segment
+            
+            sentences = split_into_sentences(
+                text=content_str,
+                base_split_strength=seg.base_split_strength,
+                enable_merge=seg.enable_merge,
+                max_segments=seg.max_segments,
+                enable_kaomoji=prot.enable_kaomoji,
+                enable_quote=prot.enable_quote,
+                enable_code_block=prot.enable_code_block,
+                enable_url=prot.enable_url,
+                enable_pair=prot.enable_pair,
+            )
+
+            # 判断是否需要分段（少于 min_segments 就放行原消息）
+            if not sentences or len(sentences) < seg.min_segments:
                 if config.general.debug_mode:
                     logger.debug(
-                        f"跳过分段发送: message_id={message.message_id}, "
-                        f"type={message.message_type}"
+                        f"分段数量不足 ({len(sentences) if sentences else 0} < {seg.min_segments})，放行原始消息"
                     )
                 return EventDecision.SUCCESS, params
 
             # 执行分段发送
-            await self._segment_and_send(message, config)
+            await self._send_segments(message, sentences, config)
 
             if config.sending.log_progress:
                 logger.info(f"消息分段发送完成: message_id={message.message_id}")
@@ -113,77 +144,15 @@ class SegmentSenderEvent(BaseEventHandler):
             return None
         return cast(Config, self.plugin.config)
 
-    def _should_handle(self, message: Message, config: Config) -> bool:
-        """判断是否应该对该消息进行分段处理。
-
-        跳过条件：
-        1. 消息类型不是纯文本
-        2. message_id 以白名单前缀开头（声明已自行管理分段）
-        3. 文本内容分段后数量少于 min_segments
-
-        Args:
-            message: 待判断的消息对象
-            config: 插件配置
-
-        Returns:
-            是否需要分段处理
-        """
-        # 仅处理文本消息
-        if message.message_type != MessageType.TEXT:
-            return False
-
-        content = message.content
-        if not content or not isinstance(content, str) or not content.strip():
-            return False
-
-        # 白名单前缀检查：跳过已自行管理分段节奏的 action
-        # 注意：不检查 api_ 前缀，因为所有经 send_api 发出的消息（包括 AFC/default_chatter）
-        # 的 message_id 都以 api_ 开头，检查该前缀会导致插件对一切正常消息无效。
-        # 防递归由「子段太短不满足 min_segments」自然保证。
-        msg_id = str(message.message_id or "")
-        for prefix in config.skipping.skip_message_id_prefixes:
-            if msg_id.startswith(prefix):
-                if config.general.debug_mode:
-                    logger.debug(f"跳过白名单前缀消息: message_id={msg_id}, prefix={prefix}")
-                return False
-
-        # 预判分段数量，少于 min_segments 则不分段
-        simple_segments = re.split(config.segment.punctuation, content.strip())
-        simple_segments = [s.strip() for s in simple_segments if s.strip()]
-        return len(simple_segments) >= config.segment.min_segments
-
-    async def _segment_and_send(self, message: Message, config: Config) -> None:
-        """将消息分段，并按打字节奏逐句发送。
+    async def _send_segments(self, message: Message, sentences: list[str], config: Config) -> None:
+        """逐句发送已分段的消息。
 
         Args:
             message: 原始消息对象
+            sentences: 已分段的句子列表
             config: 插件配置
         """
-        content = str(message.content)
-        prot = config.protection
-        seg = config.segment
         snd = config.sending
-
-        # 调用智能分割逻辑（迁移自旧框架）
-        sentences = split_into_sentences(
-            text=content,
-            base_split_strength=seg.base_split_strength,
-            enable_merge=seg.enable_merge,
-            max_segments=seg.max_segments,
-            enable_kaomoji=prot.enable_kaomoji,
-            enable_quote=prot.enable_quote,
-            enable_code_block=prot.enable_code_block,
-            enable_url=prot.enable_url,
-            enable_pair=prot.enable_pair,
-        )
-
-        # 如设置了单段最大长度，进一步强制切割过长句子
-        if seg.max_segment_length > 0:
-            sentences = self._enforce_max_length(sentences, seg.max_segment_length)
-
-        if not sentences:
-            logger.warning("分段后没有有效句子，跳过发送")
-            return
 
         if snd.log_progress:
             logger.info(f"消息已分为 {len(sentences)} 段: message_id={message.message_id}")
@@ -252,23 +221,3 @@ class SegmentSenderEvent(BaseEventHandler):
             return 0.0
         raw = len(text) / typing_speed_cps
         return max(min_delay, min(max_delay, raw))
-
-    @staticmethod
-    def _enforce_max_length(sentences: list[str], max_length: int) -> list[str]:
-        """将超过最大长度的句子按字符数强制截断。
-
-        Args:
-            sentences: 原始句子列表
-            max_length: 单段最大字符数
-
-        Returns:
-            处理后的句子列表
-        """
-        result: list[str] = []
-        for sentence in sentences:
-            while len(sentence) > max_length:
-                result.append(sentence[:max_length])
-                sentence = sentence[max_length:]
-            if sentence:
-                result.append(sentence)
-        return result
