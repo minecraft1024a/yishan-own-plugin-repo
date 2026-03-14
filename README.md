@@ -36,6 +36,20 @@
 
 [详细文档](./web_search_tool/README.md)
 
+### 5. 日程表系统 (schedule_system)
+AI 驱动的智能日程管理系统。
+
+**主要特性：**
+- 🤖 AI 智能生成每日日程
+- 📅 月度计划管理
+- 🧠 偏好学习系统
+- 🔄 自动降级机制
+- ⏰ 定时任务支持
+- 🛠️ 完整 CRUD 接口
+- 📊 统计分析功能
+
+[详细文档](./schedule_system/README.md) | [快速开始](./schedule_system/QUICKSTART.md)
+
 ## 🚀 快速开始
 
 ### 环境要求
