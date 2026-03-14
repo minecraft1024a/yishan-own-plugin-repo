@@ -6,6 +6,7 @@ from .adapter import AstrBotAdapter
 from .chatter import AstrBotChatter
 from .service import AstrBotService
 from .config import AstrBotConfig
+from .community_agent import AstrBookCommunityAgent
 from src.kernel.logger import get_logger
 
 logger = get_logger(name="AstrBot 论坛集成插件")
@@ -26,6 +27,8 @@ class AstrBotPlugin(BasePlugin):
         注册相对应的插件组件
         """
         components = []
+        if self.config.agent.enabled:
+            components.append(AstrBookCommunityAgent)
         if self.config.polling.enabled:
             components.append(AstrBotAdapter)
         components.append(AstrBotChatter)
@@ -41,37 +44,70 @@ class AstrBotPlugin(BasePlugin):
         if not bot_token:
             raise ValueError("缺少 api.bot_token 配置，请在 config.toml 中设置")
 
-        # 注册浏览器提示词模板
-        from .browser import register_prompts
 
-        register_prompts()
+        # === 新架构：社区活动 Agent ===
+        if self.config.agent.interval_enabled:
+            logger.info(f"[{self.plugin_name}] 检测到 Agent 模式已启用")
+            
+            # 初始化状态管理器
+            from .state_manager import init_state_manager
+            self.state_manager = init_state_manager(self)
+            
+            # 创建 Agent 实例
+            from .community_agent import AstrBookCommunityAgent
+            self.community_agent = AstrBookCommunityAgent(
+                stream_id="astrbot_community",
+                plugin=self
+            )
+            
+            await self._agent_callback()
+            # 注册到 unified_scheduler
+            from src.kernel.scheduler import get_unified_scheduler, TriggerType
+            
+            interval_seconds = self.config.agent.interval_minutes * 60
+            
+            await get_unified_scheduler().create_schedule(
+                callback=self._agent_callback,
+                trigger_type=TriggerType.TIME,
+                trigger_config={"delay_seconds": interval_seconds},
+                is_recurring=True,
+                task_name="astrbot_community_agent",
+            )
+            
+            logger.info(
+                f"[{self.plugin_name}] 社区活动 Agent 已启动，"
+                f"间隔: {self.config.agent.interval_minutes} 分钟"
+            )
 
-        # 启动定时发帖任务（如果启用）
-        if self.config.poster.enabled:
-            from .post_scheduler import PostScheduler
-
-            self.post_scheduler = PostScheduler(self)
-            await self.post_scheduler.start()
-            logger.info(f"[{self.plugin_name}] 定时发帖任务已启动")
-
-        # 启动帖子浏览器（如果启用）
-        if self.config.browser.enabled:
-            from .browser import ThreadBrowser
-
-            self.thread_browser = ThreadBrowser(self)
-            await self.thread_browser.start()
-            logger.info(f"[{self.plugin_name}] 帖子浏览器已启动")
+    async def _agent_callback(self):
+        """unified_scheduler 的 Agent 回调函数"""
+        try:
+            logger.info("🤖 AstrBook Agent 开始执行社区活动任务")
+            
+            import asyncio
+            
+            # 设置超时
+            timeout = self.config.agent.decision_timeout
+            success, result = await asyncio.wait_for(
+                self.community_agent.execute(),
+                timeout=timeout
+            )
+            
+            if success:
+                logger.info(f"✅ Agent 任务完成: {result}")
+            else:
+                logger.error(f"❌ Agent 任务失败: {result}")
+                
+        except asyncio.TimeoutError:
+            logger.error(
+                f" Agent 任务超时（{self.config.agent.decision_timeout}秒），"
+                "强制结束"
+            )
+        except Exception as e:
+            logger.error(f"Agent 任务异常: {e}")
 
     async def on_plugin_unloaded(self):
         """插件卸载时执行"""
-        # 停止帖子浏览器
-        if hasattr(self, "thread_browser"):
-            await self.thread_browser.stop()
-            logger.info(f"[{self.plugin_name}] 帖子浏览器已停止")
-
-        # 停止定时发帖任务
-        if hasattr(self, "post_scheduler"):
-            await self.post_scheduler.stop()
 
         # 关闭 AstrBot API 服务的连接
         try:

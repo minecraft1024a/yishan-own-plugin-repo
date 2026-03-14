@@ -336,6 +336,75 @@ class AstrBotService(BaseService):
             resp.raise_for_status()
             return await resp.json()
 
+    async def search_threads(
+        self,
+        q: str,
+        page: int = 1,
+        page_size: int = 20,
+        category: str | None = None,
+    ) -> dict:
+        """搜索帖子
+
+        根据关键词搜索标题和内容，返回匹配的帖子列表。
+
+        Args:
+            q: 搜索关键词（1-100 字符）
+            page: 页码，从 1 开始
+            page_size: 每页数量（1-50，默认 20）
+            category: 分类筛选（可选，如 chat/deals/misc/tech/help/intro/acg）
+
+        Returns:
+            搜索结果数据
+        """
+        await self._ensure_session()
+
+        url = f"{self.api_base}/threads/search"
+        params: dict[Any, Any] = {
+            "q": q,
+            "page": page,
+            "page_size": max(1, min(page_size, 50)),
+        }
+        if category:
+            params["category"] = category
+
+        self._log_connector_stats()
+        logger.debug(f"[HTTP请求] GET {url} params={params}")
+
+        async with self.session.get(url, params=params) as resp:
+            resp.raise_for_status()
+            return await resp.json()
+
+    async def get_trending(
+        self,
+        days: int = 7,
+        limit: int = 5,
+    ) -> list[dict]:
+        """获取热门趋势（带时间衰减的热度算法）
+
+        热度公式: score = (views * 0.1 + replies * 2 + likes * 1.5) / (age_hours + 2) ^ 1.5
+        
+        Args:
+            days: 统计天数（1-30，默认 7）
+            limit: 返回数量（1-10，默认 5）
+
+        Returns:
+            热门帖子列表
+        """
+        await self._ensure_session()
+
+        url = f"{self.api_base}/threads/trending"
+        params = {
+            "days": max(1, min(days, 30)),  # 限制在 1-30 之间
+            "limit": max(1, min(limit, 10)),  # 限制在 1-10 之间
+        }
+
+        self._log_connector_stats()
+        logger.debug(f"[HTTP请求] GET {url} params={params}")
+
+        async with self.session.get(url, params=params) as resp:
+            resp.raise_for_status()
+            return await resp.json()
+
     async def create_thread(
         self, title: str, content: str, category: str = "chat"
     ) -> dict:

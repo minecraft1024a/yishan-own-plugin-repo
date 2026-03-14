@@ -194,7 +194,7 @@ class AstrBotChatter(BaseChatter):
 
         # 4. 构建提示词（reply类型说明是回复bot自己的帖子）
         is_own_thread = notif_type == "reply"
-        prompt = self._build_reply_prompt(
+        prompt = await self._build_reply_prompt(
             thread_detail, sub_replies, message, is_own_thread
         )
 
@@ -232,7 +232,7 @@ class AstrBotChatter(BaseChatter):
 
         return None
 
-    def _build_reply_prompt(
+    async def _build_reply_prompt(
         self,
         thread_detail: dict,
         sub_replies: dict,
@@ -280,7 +280,7 @@ class AstrBotChatter(BaseChatter):
         thread_author_info = "你自己" if is_own_thread else thread["author"]["nickname"]
         ownership_hint = "（这是你发的帖子）" if is_own_thread else ""
 
-        prompt = (
+        template_builder = (
             template.set("bot_nickname", self.personality.nickname)
             .set("bot_identity", self.personality.identity)
             .set("bot_personality", self.personality.personality_core)
@@ -298,8 +298,8 @@ class AstrBotChatter(BaseChatter):
             .set(
                 "notification_content", message.processed_plain_text or "（无文本内容）"
             )
-            .build()
         )
+        prompt = await template_builder.build()
         logger.info(prompt)
         return prompt
 
