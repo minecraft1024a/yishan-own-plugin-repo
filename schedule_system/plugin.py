@@ -90,6 +90,9 @@ class ScheduleSystemPlugin(BasePlugin):
             # 2. 初始化管理器单例
             initialize_schedule_manager(self, db)
             initialize_plan_manager(self, db)
+            self._schedule_service = ScheduleService(self)
+            self._plan_service = PlanService(self) if self.config.plan.enabled else None
+            self._init_handler = ScheduleInitHandler(self)
             logger.info("管理器单例初始化成功")
 
             logger.info("日程系统插件加载成功")

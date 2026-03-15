@@ -8,7 +8,7 @@
 import random
 import re
 
-from split_utils import _replace_all, protect_kaomoji, protect_pairs, protect_quoted_content, protect_special_blocks, protect_urls
+from .split_utils import _replace_all, protect_kaomoji, protect_pairs, protect_quoted_content, protect_special_blocks, protect_urls
 
 # ---------------------------------------------------------------------------
 # 核心分割逻辑（迁移自旧框架 split_into_sentences_w_remove_punctuation）
