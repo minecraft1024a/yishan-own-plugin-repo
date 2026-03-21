@@ -10,7 +10,6 @@ from .thread_reader import ThreadReaderTool
 from .thread_lister import ThreadListerTool
 from .thread_searcher import ThreadSearcherTool
 from .interaction import InteractionTool
-from .trend_analyzer import TrendAnalyzerTool
 
 __all__ = [
     "FinishTaskTool",
@@ -20,5 +19,4 @@ __all__ = [
     "ThreadListerTool",
     "ThreadSearcherTool",
     "InteractionTool",
-    "TrendAnalyzerTool",
 ]

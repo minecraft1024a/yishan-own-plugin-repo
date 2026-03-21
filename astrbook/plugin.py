@@ -7,6 +7,7 @@ from .chatter import AstrBotChatter
 from .service import AstrBotService
 from .config import AstrBotConfig
 from .community_agent import AstrBookCommunityAgent
+from .event_handler import AstrBotStartupEventHandler
 from src.kernel.logger import get_logger
 
 logger = get_logger(name="AstrBot 论坛集成插件")
@@ -33,78 +34,8 @@ class AstrBotPlugin(BasePlugin):
             components.append(AstrBotAdapter)
         components.append(AstrBotChatter)
         components.append(AstrBotService)
+        components.append(AstrBotStartupEventHandler)
         return components
-
-    async def on_plugin_loaded(self):
-        """插件加载时执行"""
-        logger.info(f"[{self.plugin_name}] 插件加载完成")
-
-        # 验证配置
-        bot_token = self.config.api.bot_token
-        if not bot_token:
-            raise ValueError("缺少 api.bot_token 配置，请在 config.toml 中设置")
-
-
-        # === 新架构：社区活动 Agent ===
-        if self.config.agent.interval_enabled:
-            logger.info(f"[{self.plugin_name}] 检测到 Agent 模式已启用")
-            
-            # 初始化状态管理器
-            from .state_manager import init_state_manager
-            self.state_manager = init_state_manager(self)
-            
-            # 创建 Agent 实例
-            from .community_agent import AstrBookCommunityAgent
-            self.community_agent = AstrBookCommunityAgent(
-                stream_id="astrbot_community",
-                plugin=self
-            )
-            
-            await self._agent_callback()
-            # 注册到 unified_scheduler
-            from src.kernel.scheduler import get_unified_scheduler, TriggerType
-            
-            interval_seconds = self.config.agent.interval_minutes * 60
-            
-            await get_unified_scheduler().create_schedule(
-                callback=self._agent_callback,
-                trigger_type=TriggerType.TIME,
-                trigger_config={"delay_seconds": interval_seconds},
-                is_recurring=True,
-                task_name="astrbot_community_agent",
-            )
-            
-            logger.info(
-                f"[{self.plugin_name}] 社区活动 Agent 已启动，"
-                f"间隔: {self.config.agent.interval_minutes} 分钟"
-            )
-
-    async def _agent_callback(self):
-        """unified_scheduler 的 Agent 回调函数"""
-        try:
-            logger.info("🤖 AstrBook Agent 开始执行社区活动任务")
-            
-            import asyncio
-            
-            # 设置超时
-            timeout = self.config.agent.decision_timeout
-            success, result = await asyncio.wait_for(
-                self.community_agent.execute(),
-                timeout=timeout
-            )
-            
-            if success:
-                logger.info(f"✅ Agent 任务完成: {result}")
-            else:
-                logger.error(f"❌ Agent 任务失败: {result}")
-                
-        except asyncio.TimeoutError:
-            logger.error(
-                f" Agent 任务超时（{self.config.agent.decision_timeout}秒），"
-                "强制结束"
-            )
-        except Exception as e:
-            logger.error(f"Agent 任务异常: {e}")
 
     async def on_plugin_unloaded(self):
         """插件卸载时执行"""

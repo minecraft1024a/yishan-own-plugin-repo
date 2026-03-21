@@ -1,0 +1,30 @@
+{
+    "name": "sleep_wakeup_plugin",
+    "version": "1.0.0",
+    "description": "LLM 睡眠/苏醒离散状态机插件（困倦值 + 守护决策 + 消息阻挡）",
+    "author": "minecraft1024a",
+    "license": "GPL-3.0",
+    "dependencies": {
+        "plugins": [],
+        "components": []
+    },
+    "include": [
+        {
+            "component_type": "config",
+            "component_name": "config",
+            "dependencies": []
+        },
+        {
+            "component_type": "event_handler",
+            "component_name": "sleep_wakeup_startup_event",
+            "dependencies": []
+        },
+        {
+            "component_type": "event_handler",
+            "component_name": "sleep_message_guard_event",
+            "dependencies": []
+        }
+    ],
+    "entry_point": "plugin.py",
+    "min_core_version": "1.0.0"
+}

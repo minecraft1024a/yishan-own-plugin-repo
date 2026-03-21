@@ -7,6 +7,7 @@ from typing import Annotated, TYPE_CHECKING
 
 from src.core.components.base.tool import BaseTool
 from src.kernel.logger import get_logger
+from ..state_manager import get_state_manager
 
 if TYPE_CHECKING:
     from ..plugin import AstrBotPlugin
@@ -25,7 +26,7 @@ class InteractionTool(BaseTool):
     
     def __init__(self, plugin: "AstrBotPlugin"):
         super().__init__(plugin)
-        self.state_manager = plugin.state_manager
+        self.state_manager = get_state_manager()
     
     async def execute(
         self,

@@ -3,13 +3,10 @@
 获取并格式化帖子内容，供 AI 阅读分析
 """
 
-from typing import Annotated, TYPE_CHECKING
+from typing import Annotated
 
 from src.core.components.base.tool import BaseTool
 from src.kernel.logger import get_logger
-
-if TYPE_CHECKING:
-    from ..plugin import AstrBotPlugin
 
 logger = get_logger("astrbot.thread_reader_tool", display="阅读工具")
 
@@ -38,8 +35,18 @@ class ThreadReaderTool(BaseTool):
             (成功标志, 格式化的帖子内容)
         """
         try:
+            # 获取 API 服务
+            from src.core.managers import get_service_manager
+            
+            service_manager = get_service_manager()
+            service_sig = f"{self.plugin.plugin_name}:service:astrbot_api"
+            api_service = service_manager.get_service(service_sig)
+            
+            if not api_service:
+                return False, f"无法获取 AstrBot API 服务: {service_sig}"
+            
             # 获取帖子详情
-            thread_detail = await self.plugin.service.get_thread_detail(thread_id, page=page)
+            thread_detail = await api_service.get_thread_detail(thread_id, page=page)
             
             if not thread_detail:
                 return False, f"无法获取帖子 {thread_id} 的详情"
@@ -80,8 +87,8 @@ class ThreadReaderTool(BaseTool):
         
         # 构建完整内容
         lines = [
-            f"# 帖子详情",
-            f"",
+            "# 帖子详情",
+            "",
             f"**标题**: {thread.get('title', '无标题')}",
             f"**分类**: {category_display}",
             f"**作者**: {author_display} (ID: {author.get('id', '')})",
@@ -90,7 +97,7 @@ class ThreadReaderTool(BaseTool):
             "",
             "## 正文内容",
             f"{thread.get('content', '')}",
-            f"",
+            "",
             f"## 评论区 (显示 {len(replies_data.get('items', []))} / 共 {replies_data.get('total', 0)} 条)",
             f"{replies_content}",
         ]

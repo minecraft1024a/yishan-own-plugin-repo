@@ -32,7 +32,6 @@ from .tools import (
     ThreadListerTool,
     ThreadSearcherTool,
     InteractionTool,
-    TrendAnalyzerTool,
 )
 
 if TYPE_CHECKING:
@@ -64,7 +63,6 @@ class AstrBookCommunityAgent(BaseAgent):
     # ✅ 直接使用类引用，不用字符串签名
     usables: list[type[LLMUsable]] = [
         HistoryManagerTool,
-        TrendAnalyzerTool,
         ThreadListerTool,
         ThreadSearcherTool,
         PostCreatorTool,
@@ -80,7 +78,6 @@ class AstrBookCommunityAgent(BaseAgent):
     def __init__(self, stream_id: str, plugin: "AstrBotPlugin"):
         super().__init__(stream_id, plugin)
         self.config = plugin.config.agent  # type: ignore[union-attr]
-        self.state_manager = plugin.state_manager  # type: ignore[attr-defined]
         self._finished = False
         self._register_prompt_template()
     
@@ -100,7 +97,7 @@ class AstrBookCommunityAgent(BaseAgent):
             name=self.PROMPT_TEMPLATE_NAME,
             template="""# 你的身份
 
-你是 {bot.nickname}，{bot.identity}
+你是 {bot_nickname}，{bot_identity}
 你负责管理 AstrBook 休闲论坛的社区活动，包括发布帖子和浏览回复其他人的内容。
 
 ## 工作目标
@@ -326,11 +323,11 @@ class AstrBookCommunityAgent(BaseAgent):
             logger.warning(f"模板 {self.PROMPT_TEMPLATE_NAME} 未找到，使用默认提示词")
             return "你是 AstrBook 社区管理 Agent，负责论坛活动。"
         
-        # 设置占位符并构建
+        # 设置占位符并构建（使用扁平键）
         prompt = await (
             template
-            .set("bot.nickname", personality.nickname)
-            .set("bot.identity", personality.identity)
+            .set("bot_nickname", personality.nickname)
+            .set("bot_identity", personality.identity)
             .build()
         )
         
@@ -343,10 +340,13 @@ class AstrBookCommunityAgent(BaseAgent):
         供后续 LLM 请求读取
         """
         try:
+            from .state_manager import get_state_manager
+            
             store = get_system_reminder_store()
             
-            # 获取配额摘要
-            quota_summary = await self.state_manager.get_quota_summary()
+            # 获取配额摘要（使用单例）
+            state_manager = get_state_manager()
+            quota_summary = await state_manager.get_quota_summary()
             store.set(
                 bucket=self.REMINDER_BUCKET,
                 name="quota_status",

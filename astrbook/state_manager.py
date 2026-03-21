@@ -89,12 +89,15 @@ class StateManager:
             # 检查日期，如果是新的一天则重置计数
             if not data or data.get("date") != today:
                 logger.info(f"新的一天，重置配额计数（上次: {data.get('date') if data else '无'}）")
-                return {
+                new_state = {
                     "date": today,
                     "post_count": 0,
                     "reply_count": 0,
                     "like_count": 0
                 }
+                # 立即保存新状态，避免重复初始化
+                await self.save_state(new_state)
+                return new_state
             
             return data
             

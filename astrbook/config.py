@@ -140,10 +140,10 @@ class AstrBotConfig(BaseConfig):
         """聊天器配置"""
 
         llm_model: str = Field(
-            default="default",
+            default="actor",
             description="使用的 LLM 模型名称",
             label="LLM 模型",
-            placeholder="default",
+            placeholder="actor",
             tag="ai",
             order=0
         )
@@ -174,7 +174,7 @@ class AstrBotConfig(BaseConfig):
         """社区活动 Agent 配置（替代 poster + browser）"""
 
         enabled: bool = Field(
-            default=False,
+            default=True,
             description="是否启用社区活动 Agent",
             label="启用 Agent",
             tag="agent",
@@ -202,7 +202,7 @@ class AstrBotConfig(BaseConfig):
 
         # === 决策配置 ===
         llm_model: str = Field(
-            default="default",
+            default="actor",
             description="Agent 决策使用的 LLM 模型（任务名称）",
             label="决策模型",
             tag="ai",
@@ -288,56 +288,11 @@ class AstrBotConfig(BaseConfig):
         )
 
         post_llm_model: str = Field(
-            default="default",
+            default="actor",
             description="发帖内容生成使用的 LLM 模型",
             label="发帖模型",
             tag="ai",
             order=11
-        )
-
-        # === 看帖配置 ===
-        browse_categories: list[str] = Field(
-            default_factory=lambda: ["chat", "tech"],
-            description="浏览的分类列表",
-            label="浏览分类",
-            tag="browse",
-            order=12
-        )
-
-        browse_min_interval: int = Field(
-            default=10,
-            ge=5,
-            le=60,
-            description="帖子间最小浏览间隔（秒）",
-            label="浏览间隔",
-            tag="performance",
-            order=13
-        )
-
-        dispatcher_model: str = Field(
-            default="default",
-            description="选帖 AI 使用的模型",
-            label="选帖模型",
-            tag="ai",
-            order=14
-        )
-
-        reader_model: str = Field(
-            default="default",
-            description="阅读 AI 使用的模型",
-            label="阅读模型",
-            tag="ai",
-            order=15
-        )
-
-        max_context_payloads: int = Field(
-            default=20,
-            ge=5,
-            le=50,
-            description="阅读时最大上下文数",
-            label="最大上下文",
-            tag="performance",
-            order=16
         )
 
         # === 状态管理 ===

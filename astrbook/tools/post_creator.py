@@ -13,6 +13,7 @@ from src.core.prompt import get_prompt_manager
 from src.core.config import get_core_config, get_model_config
 from src.kernel.llm import LLMRequest, LLMPayload, ROLE, Text
 from src.kernel.logger import get_logger
+from ..state_manager import get_state_manager
 
 if TYPE_CHECKING:
     from ..plugin import AstrBotPlugin
@@ -34,7 +35,7 @@ class PostCreatorTool(BaseTool):
     
     def __init__(self, plugin: "AstrBotPlugin"):
         super().__init__(plugin)
-        self.state_manager = plugin.state_manager
+        self.state_manager = get_state_manager()
         core_config = get_core_config()
         self.personality = core_config.personality
     
@@ -81,7 +82,7 @@ class PostCreatorTool(BaseTool):
                 search_results = await self._get_search_insights()
             
             # 4. 构建提示词
-            prompt = self._build_post_prompt(
+            prompt = await self._build_post_prompt(
                 recent_topics=recent_topics,
                 search_results=search_results,
                 topic_hint=topic_hint,
@@ -206,7 +207,7 @@ class PostCreatorTool(BaseTool):
             logger.warning(f"获取搜索结果失败: {e}")
             return "暂无网络搜索参考"
     
-    def _build_post_prompt(
+    async def _build_post_prompt(
         self,
         recent_topics: str,
         search_results: str,
@@ -215,7 +216,91 @@ class PostCreatorTool(BaseTool):
     ) -> str:
         """构建发帖提示词"""
         manager = get_prompt_manager()
-        template = manager.get_template("astrbot_create_post")
+        template = manager.get_or_create(
+            name="astrbot_create_post",
+            template="""# 你的身份
+你叫 {bot_nickname}，{bot_identity}。
+
+## 人格特征
+{bot_personality}
+
+## 表达风格
+{bot_reply_style}
+
+---
+
+# 当前任务
+你需要在 AstrBook 休闲论坛上发布一篇轻松的帖子。
+
+## 发帖要求
+这是一个**休闲论坛**，氛围轻松愉快，你可以：
+1. **分享个人爱好**：音乐、游戏、动漫、美食、旅行、摄影等任何你感兴趣的事
+2. **聊日常生活**：今天的心情、有趣的见闻、小确幸、吐槽日常
+3. **发表随想感悟**：对某件事的看法、突然想到的有趣点子
+4. **推荐好物**：最近喜欢的歌、书、电影、游戏、Up主等
+5. **提问讨论**：关于兴趣爱好的问题，征集推荐
+
+**不要太严肃**，不需要写得像学术论文或技术文档：
+- 可以是轻松闲聊的语气
+- 内容可以简短、随意，但要真诚
+- 可以带点个性和情绪
+- 重点是表达真实的想法和感受
+
+## 可用的帖子分类
+| 分类 Key | 分类名称 | 适合内容 |
+|----------|----------|----------|
+| chat | 闲聊 | 日常聊天、杂谈、心情分享 |
+| tech | 技术 | 技术讨论、开发经验 |
+| help | 求助 | 提问、寻求帮助、求推荐 |
+| share | 分享 | 资源分享、经验分享、好物推荐 |
+| deals | 优惠 | 优惠信息、活动分享 |
+| intro | 自我介绍 | Bot 自我介绍 |
+| acg | ACG | 二次元相关、动漫、游戏 |
+| misc | 其他 | 杂项内容 |
+
+## 当前时间
+{current_time}
+
+## 最近话题（可选参考）
+{recent_topics}
+
+## 网络搜索结果（可选参考）
+{search_results}
+
+---
+
+# 发帖灵感参考
+你可以从这些角度考虑：
+- 最近在玩什么游戏/看什么番/听什么歌？
+- 有什么想吐槽或分享的日常趣事？
+- 对某个话题有什么独特看法？
+- 想向大家提问或征集意见？
+- 发现了什么有趣的东西想推荐？
+- 今天心情如何，有什么感想？
+
+---
+
+# 输出要求
+必须严格按照以下 JSON 格式输出：
+
+```json
+{{
+  "title": "帖子标题（10-50字）",
+  "content": "帖子内容（80-600字，自然随意即可）",
+  "category": "分类名称（从上述可选分类中选择）",
+  "reasoning": "为什么想发这个帖子（简短说明）"
+}}
+```
+
+注意：
+- 标题要自然、有趣，像朋友聊天
+- 内容真诚放松，不要太正式或刻意
+- 分类要准确匹配内容主题
+- 保持符合你的人设和风格
+- 可以表达个人情绪和想法
+- 只输出 JSON，不要有其他文字
+""",
+        )
         
         current_time = datetime.now().strftime("%Y年%m月%d日 %H:%M")
         
@@ -227,7 +312,7 @@ class PostCreatorTool(BaseTool):
         if category_hint:
             topic_section += f"\n建议分类: {category_hint}\n"
         
-        return (
+        prompt_base = await (
             template.set("bot_nickname", self.personality.nickname)
             .set("bot_identity", self.personality.identity)
             .set("bot_personality", self.personality.personality_core)
@@ -236,7 +321,8 @@ class PostCreatorTool(BaseTool):
             .set("recent_topics", recent_topics)
             .set("search_results", search_results)
             .build()
-        ) + topic_section
+        )
+        return prompt_base + topic_section
     
     def _parse_json_response(self, response: str) -> dict | None:
         """解析 JSON 响应"""
