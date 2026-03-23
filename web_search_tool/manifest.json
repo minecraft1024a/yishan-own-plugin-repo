@@ -31,6 +31,15 @@
             "beautifulsoup4"
         ]
     },
+    "python_dependencies": [
+        "httpx",
+        "aiohttp",
+        "tavily-python",
+        "exa-py",
+        "asyncddgs",
+        "orjson",
+        "beautifulsoup4"
+    ],
     "include": [
         {
             "component_type": "tool",
