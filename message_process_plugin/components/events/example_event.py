@@ -122,6 +122,9 @@ class SegmentSenderEvent(BaseEventHandler):
                 logger.info(f"消息分段发送完成: message_id={message.message_id}")
 
             # 拦截原始消息，由本处理器接管发送
+            continue_send = params.get("continue_send", False)
+            if continue_send:
+                params["continue_send"] = False
             return EventDecision.STOP, params
 
         except Exception as e:
