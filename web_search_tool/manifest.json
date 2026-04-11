@@ -20,25 +20,16 @@
     ],
     "dependencies": {
         "plugins": [],
-        "components": [],
-        "python_packages": [
-            "httpx",
-            "aiohttp",
-            "tavily-python",
-            "exa-py",
-            "asyncddgs",
-            "orjson",
-            "beautifulsoup4"
-        ]
+        "components": []
     },
     "python_dependencies": [
-        "httpx",
-        "aiohttp",
-        "tavily-python",
-        "exa-py",
-        "asyncddgs",
-        "orjson",
-        "beautifulsoup4"
+        "httpx>=0.24.0",
+        "aiohttp>=3.8.0",
+        "tavily-python>=0.3.0",
+        "exa-py>=1.0.0",
+        "asyncddgs>=0.2.0",
+        "orjson>=3.8.0",
+        "beautifulsoup4>=4.11.0"
     ],
     "include": [
         {
