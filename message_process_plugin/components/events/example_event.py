@@ -9,7 +9,14 @@ Created at: 2026-02-24
 """
 
 import asyncio
+import contextvars
 from typing import Any, cast
+
+# 标记当前调用链是否正处于分段发送过程中，防止 _send_segments 调用 send_text
+# 再次触发 ON_MESSAGE_SENT 事件时被自身递归拦截
+_in_segment_sending: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "segment_sender_in_progress", default=False
+)
 
 from src.app.plugin_system.api.log_api import get_logger
 from src.app.plugin_system.api.send_api import send_text
@@ -82,7 +89,11 @@ class SegmentSenderEvent(BaseEventHandler):
             if not content or not isinstance(content, str) or not content.strip():
                 return EventDecision.SUCCESS, params
 
-            # 白名单前缀检查：跳过已自行管理分段节奏的 action / 通过sendapi发送的分段消息
+            # 递归保护：若当前调用链已在执行分段发送，则放行，避免 send_text 再次触发本处理器
+            if _in_segment_sending.get():
+                return EventDecision.SUCCESS, params
+
+            # 白名单前缀检查：跳过已自行管理分段节奏的 action
             msg_id = str(message.message_id or "")
             for prefix in config.skipping.skip_message_id_prefixes:
                 if msg_id.startswith(prefix):
@@ -90,7 +101,11 @@ class SegmentSenderEvent(BaseEventHandler):
                         logger.debug(f"跳过白名单前缀消息: message_id={msg_id}, prefix={prefix}")
                     return EventDecision.SUCCESS, params
 
-            # 直接尝试分段
+            # --- LLM 分段模式 ---
+            if config.general.segment_mode == "llm":
+                return await self._handle_llm_mode(message, content_str=str(content), config=config, params=params)
+
+            # --- 标点符号分段模式（默认）---
             content_str = str(content)
             prot = config.protection
             seg = config.segment
@@ -100,11 +115,14 @@ class SegmentSenderEvent(BaseEventHandler):
                 base_split_strength=seg.base_split_strength,
                 enable_merge=seg.enable_merge,
                 max_segments=seg.max_segments,
+                preserve_punctuation=seg.preserve_punctuation,
                 enable_kaomoji=prot.enable_kaomoji,
                 enable_quote=prot.enable_quote,
                 enable_code_block=prot.enable_code_block,
                 enable_url=prot.enable_url,
                 enable_pair=prot.enable_pair,
+                separators=seg.separators,
+                strong_separators=seg.strong_separators,
             )
 
             # 判断是否需要分段（少于 min_segments 就放行原消息）
@@ -122,9 +140,7 @@ class SegmentSenderEvent(BaseEventHandler):
                 logger.info(f"消息分段发送完成: message_id={message.message_id}")
 
             # 拦截原始消息，由本处理器接管发送
-            continue_send = params.get("continue_send", False)
-            if continue_send:
-                params["continue_send"] = False
+            params["continue_send"] = False
             return EventDecision.STOP, params
 
         except Exception as e:
@@ -135,6 +151,46 @@ class SegmentSenderEvent(BaseEventHandler):
     # ------------------------------------------------------------------
     # 内部方法
     # ------------------------------------------------------------------
+
+    async def _handle_llm_mode(
+        self, message: Message, content_str: str, config: Config, params: dict[str, Any]
+    ) -> tuple[EventDecision, dict[str, Any]]:
+        """处理 LLM 分段模式：按标记拆分后逐段发送。
+
+        若消息中不含分段标记，则直接放行，由正常流程发送。
+        若消息中含有分段标记，则按标记拆分后逐段发送，并拦截原始消息。
+
+        Args:
+            message: 原始消息对象
+            content_str: 原始消息文本
+            config: 插件配置
+            params: 事件参数字典
+
+        Returns:
+            tuple[EventDecision, dict[str, Any]]: 决策与参数
+        """
+        marker = config.llm_segment.split_marker
+        if marker not in content_str:
+            if config.general.debug_mode:
+                logger.debug("LLM 模式：消息中未发现分段标记，放行原始消息")
+            return EventDecision.SUCCESS, params
+
+        parts = [p.strip() for p in content_str.split(marker) if p.strip()]
+        if not parts:
+            if config.general.debug_mode:
+                logger.debug("LLM 模式：分段标记拆分后为空，放行原始消息")
+            return EventDecision.SUCCESS, params
+
+        if config.general.debug_mode:
+            logger.debug(f"LLM 模式：检测到分段标记，拆分为 {len(parts)} 段")
+
+        await self._send_segments(message, parts, config)
+
+        if config.sending.log_progress:
+            logger.info(f"LLM 分段发送完成: message_id={message.message_id}, segments={len(parts)}")
+
+        params["continue_send"] = False
+        return EventDecision.STOP, params
 
     def _get_config(self) -> Config | None:
         """获取插件配置实例。
@@ -160,6 +216,17 @@ class SegmentSenderEvent(BaseEventHandler):
         if snd.log_progress:
             logger.info(f"消息已分为 {len(sentences)} 段: message_id={message.message_id}")
 
+        # 设置递归保护标记，防止 send_text 发出的消息再次被本处理器拦截
+        token = _in_segment_sending.set(True)
+        try:
+            await self._send_segments_inner(message, sentences, snd, config)
+        finally:
+            _in_segment_sending.reset(token)
+
+    async def _send_segments_inner(
+        self, message: Message, sentences: list[str], snd: Any, config: Config
+    ) -> None:
+        """实际执行逐句发送（已受递归保护）。"""
         # 逐句发送
         for idx, sentence in enumerate(sentences, 1):
             # 打字延迟（模拟人类输入速度）

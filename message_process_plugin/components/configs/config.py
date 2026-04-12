@@ -31,13 +31,23 @@ class Config(BaseConfig):
             tag="general",
             order=0
         )
+        segment_mode: str = Field(
+            default="punctuation",
+            description="分段模式：punctuation（标点分段）/ llm（让 LLM 自行决定分段位置）",
+            label="分段模式",
+            input_type="select",
+            choices=["punctuation", "llm"],
+            tag="general",
+            hint="llm 模式下，LLM 会在希望分段处插入标记，插件拦截后按标记拆分发送",
+            order=1
+        )
         debug_mode: bool = Field(
             default=False,
             description="调试模式（打印详细分段日志）",
             label="调试模式",
             tag="debug",
             hint="开启后会在日志中打印详细的分段信息",
-            order=1
+            order=2
         )
 
     @config_section("segment", title="分段规则", tag="text", order=10)
@@ -95,6 +105,24 @@ class Config(BaseConfig):
             tag="performance",
             hint="-1 表示自动调整",
             order=6
+        )
+        separators: list[str] = Field(
+            default=["，", ",", " ", "。", ";", "∽", "≈", "~", "～", "…", "！", "!", "？", "?"],
+            description="分割点字符列表，文本在这些字符处被切分成段",
+            label="分割字符",
+            input_type="list",
+            item_type="str",
+            tag="text",
+            order=7
+        )
+        strong_separators: list[str] = Field(
+            default=["∽", "≈", "~", "～", "…", "！", "!", "？", "?"],
+            description="强语义分隔符列表，匹配的字符在分段后保留在句尾而不被去掉",
+            label="强语义分隔符",
+            input_type="list",
+            item_type="str",
+            tag="text",
+            order=8
         )
 
     @config_section("protection", title="内容保护", tag="text", order=20)
@@ -226,9 +254,51 @@ class Config(BaseConfig):
             order=5
         )
 
+    @config_section("llm_segment", title="LLM 分段设置", tag="llm", order=50)
+    class LLMSegmentSection(SectionBase):
+        """LLM 分段模式配置节。
+
+        当 general.segment_mode == "llm" 时生效。
+        插件会向 LLM 提示词中注入分段指令，
+        LLM 在希望分段的位置插入 split_marker，
+        插件拦截后按标记拆分并逐段发送。
+        """
+
+        split_marker: str = Field(
+            default="[分段]",
+            description="LLM 在分段处插入的标记文本，插件据此拆分消息",
+            label="分段标记",
+            tag="llm",
+            hint="该标记应足够独特，避免与正常回复内容冲突",
+            order=0,
+        )
+        inject_prompt_names: list[str] = Field(
+            default=["default_chatter_user_prompt"],
+            description="向哪些提示词模板注入分段指令（填写 on_prompt_build 事件中的模板 name）",
+            label="注入目标模板",
+            input_type="list",
+            item_type="str",
+            tag="llm",
+            hint="不同 chatter 使用的模板名不同，请根据实际插件配置填写",
+            order=1,
+        )
+        segment_instruction: str = Field(
+            default="",
+            description=(
+                "注入到提示词中的分段指令模板，{marker} 会被替换为实际的分段标记。"
+                "留空则使用内置默认指令。支持 Markdown 格式。"
+            ),
+            label="分段指令模板",
+            input_type="textarea",
+            tag="llm",
+            hint="留空时自动使用内置默认指令",
+            order=2,
+        )
+
     # 配置节实例
     general: GeneralSection = Field(default_factory=GeneralSection)
     segment: SegmentSection = Field(default_factory=SegmentSection)
     protection: ProtectionSection = Field(default_factory=ProtectionSection)
     skipping: SkippingSection = Field(default_factory=SkippingSection)
     sending: SendingSection = Field(default_factory=SendingSection)
+    llm_segment: LLMSegmentSection = Field(default_factory=LLMSegmentSection)

@@ -32,11 +32,14 @@ def split_into_sentences(
     base_split_strength: float = -1.0,
     enable_merge: bool = True,
     max_segments: int = 8,
+    preserve_punctuation: bool = True,
     enable_kaomoji: bool = True,
     enable_quote: bool = True,
     enable_code_block: bool = True,
     enable_url: bool = True,
     enable_pair: bool = True,
+    separators: list[str] | None = None,
+    strong_separators: list[str] | None = None,
 ) -> list[str]:
     """将文本分割成句子，并根据概率合并相邻短句。
 
@@ -56,8 +59,11 @@ def split_into_sentences(
         enable_kaomoji: 是否保护颜文字
         enable_quote: 是否保护引号内容
         enable_code_block: 是否保护代码块和公式
+        preserve_punctuation: 是否在句末保留标点符号（False 时去除弱标点）
         enable_url: 是否保护 URL
         enable_pair: 是否保护成对括号内容
+        separators: 分割点字符列表，None 时使用内置默认值
+        strong_separators: 强语义分隔符集合，这些字符在分段后保留在句尾，None 时使用内置默认值
 
     Returns:
         分割并合并后的句子列表
@@ -101,8 +107,13 @@ def split_into_sentences(
         sentence = text.strip()
         return [sentence] if sentence else []
 
-    # ── 分隔符集合（与旧框架保持一致）
-    separators = {"，", ",", " ", "。", ";", "∽", "≈", "~", "～", "…", "！", "!", "？", "?"}
+    # ── 分隔符集合（可由调用方通过 separators 参数覆盖）
+    _sep_set: set[str] = set(separators) if separators is not None else {
+        "，", ",", " ", "。", ";", "∽", "≈", "~", "～", "…", "！", "!", "？", "?"
+    }
+    _strong_sep_set: set[str] = set(strong_separators) if strong_separators is not None else {
+        "∽", "≈", "~", "～", "…", "！", "!", "？", "?", "♪"
+    }
 
     # ── 按分隔符切分成 (内容, 分隔符) 元组
     segments: list[tuple[str, str]] = []
@@ -111,7 +122,7 @@ def split_into_sentences(
 
     while i < len(text):
         char = text[i]
-        if char in separators:
+        if char in _sep_set:
             # 英文字母两侧不在空格/逗号处分割（保持英文句子完整）
             if char in {" ", ","}:
                 left = text[i - 1] if i > 0 else ""
@@ -141,7 +152,7 @@ def split_into_sentences(
             if len_text < 12:
                 split_strength = 0.2
             elif len_text < 32:
-                split_strength = 0.4
+                split_strength = 0.6
             else:
                 split_strength = 0.7
         else:
@@ -150,29 +161,46 @@ def split_into_sentences(
     else:
         merge_probability = 0.0
 
-    # ── 概率合并，仅在弱标点（逗号、顿号、空格）处合并
-    weak_separators = {",", "，", " "}
+    # ── 概率合并（与旧框架对齐）
+    # 按标点类型调整合并概率：强标点难合并，弱标点易合并；
+    # 使用独立输出列表 + idx+=2 防止链式合并（旧框架逻辑）
+    merged_segments: list[tuple[str, str]] = []
     idx = 0
     while idx < len(segments):
-        content, sep = segments[idx]
+        current_content, current_sep = segments[idx]
+
+        # 按标点类型调整本次合并概率（动态使用 _strong_sep_set，不再硬编码）
+        current_merge_prob = merge_probability
+        if current_sep in {"。", "；", ";"}:
+            current_merge_prob *= 0.1   # 句终标点：极难合并
+        elif current_sep in _strong_sep_set:
+            current_merge_prob *= 0.3   # 强语义符号（感叹、问号、波浪、♪ 等）：较难合并
+        else:
+            current_merge_prob *= 1.2   # 弱标点（逗号、空格等）：更容易合并
+
         if (
             idx + 1 < len(segments)
-            and sep in weak_separators
-            and random.random() < merge_probability
+            and random.random() < current_merge_prob
+            and current_content
         ):
             next_content, next_sep = segments[idx + 1]
-            segments[idx + 1] = (content + sep + next_content, next_sep)
-            segments.pop(idx)
+            if next_content:
+                merged_segments.append((current_content + current_sep + next_content, next_sep))
+            else:
+                merged_segments.append((current_content, next_sep))
+            idx += 2  # 跳过已合并的下一段，避免链式合并
         else:
+            merged_segments.append((current_content, current_sep))
             idx += 1
 
-    # ── 提取最终句子（弱分隔符不保留，强分隔符保留在句末）
-    # 弱分隔符：逗号、顿号、分号、句号等结构性标点，分割后从句末丢弃
-    # 强分隔符：感叹号、问号、省略号、波浪号等有语义或表达意图的标点，保留在句末
-    soft_separators = {" ", "∽", "≈", ",", "，", ";", "；", "。"}
+    # ── 提取初步句子
+    # 强语义符号保留在句尾；弱功能性标点在分割点去掉，因为分段本身已起到停顿作用。
+    # 最后一段无论什么符号都保留（与旧框架一致）。
     final_sentences: list[str] = []
-    for content, sep in segments:
-        if sep and sep not in soft_separators:
+    for i, (content, sep) in enumerate(merged_segments):
+        if not content:
+            continue
+        if i == len(merged_segments) - 1 or sep in _strong_sep_set:
             sentence = (content + sep).strip()
         else:
             sentence = content.strip()
@@ -183,15 +211,25 @@ def split_into_sentences(
         return []
 
     # ── 超过 max_segments 时，循环合并最短相邻段
+    # 以强标点结尾的段增加合并阻力，避免破坏语义边界；
+    # 合并时若前句末尾无标点，自动补 ，（与旧框架逻辑一致）。
+    _strong_ending = tuple(_strong_sep_set) + ("。", "；", ";")
     while len(final_sentences) > max_segments:
-        min_len = float("inf")
+        min_cost = float("inf")
         min_idx = 0
         for j in range(len(final_sentences) - 1):
-            combined = len(final_sentences[j]) + len(final_sentences[j + 1])
-            if combined < min_len:
-                min_len = combined
+            resistance = 5.0 if final_sentences[j].endswith(_strong_ending) else 1.0
+            cost = (len(final_sentences[j]) + len(final_sentences[j + 1])) * resistance
+            if cost < min_cost:
+                min_cost = cost
                 min_idx = j
-        final_sentences[min_idx] = final_sentences[min_idx] + final_sentences[min_idx + 1]
+        prev = final_sentences[min_idx]
+        nxt = final_sentences[min_idx + 1]
+        # 前句末尾无标点时补逗号，保持可读性
+        if prev and prev[-1] not in set(_strong_ending) | {"，", ",", "。", "；", ";", " "}:
+            final_sentences[min_idx] = prev + "，" + nxt
+        else:
+            final_sentences[min_idx] = prev + nxt
         final_sentences.pop(min_idx + 1)
 
     # ── 恢复所有被保护的内容
@@ -219,5 +257,13 @@ def split_into_sentences(
         else:
             cleaned_sentences.append(sentence)
 
-    return [s for s in cleaned_sentences if s.strip()]
+    # ── 统一清理：去除每个独立消息末尾的弱标点符号（保留问号、感叹号、波浪号等强烈语义符号）
+    result: list[str] = []
+    for s in cleaned_sentences:
+        if not preserve_punctuation:
+            s = s.rstrip(" ，,。;；")
+        if s.strip():
+            result.append(s.strip())
+
+    return result
 
