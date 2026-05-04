@@ -27,7 +27,7 @@
         "aiohttp>=3.8.0",
         "tavily-python>=0.3.0",
         "exa-py>=1.0.0",
-        "asyncddgs>=0.2.0",
+        "asyncddgs>=0.1.0a1",
         "orjson>=3.8.0",
         "beautifulsoup4>=4.11.0"
     ],
