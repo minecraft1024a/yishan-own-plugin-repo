@@ -20,7 +20,7 @@ class Config(BaseConfig):
     config_name: ClassVar[str] = "config"
     config_description: ClassVar[str] = "消息分段发送插件配置"
 
-    @config_section("general", title="通用设置", tag="general", order=0)
+    @config_section("general", title="通用设置", tag="general")
     class GeneralSection(SectionBase):
         """通用配置节"""
 
@@ -50,7 +50,7 @@ class Config(BaseConfig):
             order=2
         )
 
-    @config_section("segment", title="分段规则", tag="text", order=10)
+    @config_section("segment", title="分段规则", tag="text")
     class SegmentSection(SectionBase):
         """分段规则配置节"""
 
@@ -125,7 +125,7 @@ class Config(BaseConfig):
             order=8
         )
 
-    @config_section("protection", title="内容保护", tag="text", order=20)
+    @config_section("protection", title="内容保护", tag="text")
     class ProtectionSection(SectionBase):
         """内容保护配置节"""
 
@@ -165,7 +165,7 @@ class Config(BaseConfig):
             order=4
         )
 
-    @config_section("skipping", title="跳过规则", tag="list", order=30)
+    @config_section("skipping", title="跳过规则", tag="list")
     class SkippingSection(SectionBase):
         """跳过规则配置节"""
 
@@ -185,7 +185,7 @@ class Config(BaseConfig):
             order=0
         )
 
-    @config_section("sending", title="发送行为", tag="performance", order=40)
+    @config_section("sending", title="发送行为", tag="performance")
     class SendingSection(SectionBase):
         """发送行为配置节"""
 
@@ -254,7 +254,7 @@ class Config(BaseConfig):
             order=5
         )
 
-    @config_section("llm_segment", title="LLM 分段设置", tag="llm", order=50)
+    @config_section("llm_segment", title="LLM 分段设置", tag="llm")
     class LLMSegmentSection(SectionBase):
         """LLM 分段模式配置节。
 

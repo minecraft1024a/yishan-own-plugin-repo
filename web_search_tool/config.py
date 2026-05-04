@@ -12,7 +12,7 @@ class WebSearchConfig(BaseConfig):
     config_name: ClassVar[str] = "config"
     config_description: ClassVar[str] = "网络搜索工具插件配置"
 
-    @config_section("plugin", title="插件设置", tag="plugin", order=0)
+    @config_section("plugin", title="插件设置", tag="plugin")
     class PluginSection(SectionBase):
         """插件基本配置"""
 
@@ -32,7 +32,7 @@ class WebSearchConfig(BaseConfig):
             order=1
         )
 
-    @config_section("components", title="组件配置", tag="plugin", order=10)
+    @config_section("components", title="组件配置", tag="plugin")
     class ComponentsSection(SectionBase):
         """组件启用配置"""
 
@@ -51,7 +51,7 @@ class WebSearchConfig(BaseConfig):
             order=1
         )
 
-    @config_section("proxy", title="代理配置", tag="network", order=20)
+    @config_section("proxy", title="代理配置", tag="network")
     class ProxySection(SectionBase):
         """代理配置"""
 
@@ -93,7 +93,7 @@ class WebSearchConfig(BaseConfig):
             order=3
         )
 
-    @config_section("api_keys", title="API 密钥", tag="security", order=30)
+    @config_section("api_keys", title="API 密钥", tag="security")
     class ApiKeysSection(SectionBase):
         """API密钥配置"""
 
@@ -134,7 +134,7 @@ class WebSearchConfig(BaseConfig):
             order=3
         )
 
-    @config_section("search", title="搜索配置", tag="general", order=40)
+    @config_section("search", title="搜索配置", tag="general")
     class SearchSection(SectionBase):
         """搜索配置"""
 
@@ -187,7 +187,7 @@ class WebSearchConfig(BaseConfig):
             order=4
         )
 
-    @config_section("searxng", title="SearXNG 配置", tag="network", order=50)
+    @config_section("searxng", title="SearXNG 配置", tag="network")
     class SearXNGSection(SectionBase):
         """SearXNG搜索引擎配置"""
 
@@ -200,7 +200,7 @@ class WebSearchConfig(BaseConfig):
             order=0
         )
 
-    @config_section("bing", title="Bing 配置", tag="network", order=60)
+    @config_section("bing", title="Bing 配置", tag="network")
     class BingSection(SectionBase):
         """Bing搜索引擎配置"""
 

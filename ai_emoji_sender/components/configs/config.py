@@ -20,7 +20,7 @@ class Config(BaseConfig):
     config_name: ClassVar[str] = "config"
     config_description: ClassVar[str] = "AI 表情包选择器插件配置"
 
-    @config_section("selection", title="选择配置", tag="ai", order=0)
+    @config_section("selection", title="选择配置", tag="ai")
     class SelectionSection(SectionBase):
         """表情包选择配置节"""
 
@@ -62,7 +62,7 @@ class Config(BaseConfig):
             order=3
         )
 
-    @config_section("filter", title="过滤配置", tag="list", order=10)
+    @config_section("filter", title="过滤配置", tag="list")
     class FilterSection(SectionBase):
         """表情包过滤配置节"""
 

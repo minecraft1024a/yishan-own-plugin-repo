@@ -12,7 +12,7 @@ class Config(BaseConfig):
     config_name: ClassVar[str] = "config"
     config_description: ClassVar[str] = "睡眠/苏醒离散状态机插件配置"
 
-    @config_section("general", title="通用设置", tag="general", order=0)
+    @config_section("general", title="通用设置", tag="general")
     class GeneralSection(SectionBase):
         """通用设置。"""
 
@@ -29,7 +29,7 @@ class Config(BaseConfig):
             order=1,
         )
 
-    @config_section("timing", title="时间参数", tag="timer", order=10)
+    @config_section("timing", title="时间参数", tag="timer")
     class TimingSection(SectionBase):
         """时间参数设置。"""
 
@@ -70,7 +70,7 @@ class Config(BaseConfig):
             order=4,
         )
 
-    @config_section("model", title="状态机参数", tag="model", order=20)
+    @config_section("model", title="状态机参数", tag="model")
     class ModelSection(SectionBase):
         """状态机参数。"""
 
@@ -130,7 +130,7 @@ class Config(BaseConfig):
             order=6,
         )
 
-    @config_section("guard", title="消息拦截", tag="guard", order=30)
+    @config_section("guard", title="消息拦截", tag="guard")
     class GuardSection(SectionBase):
         """守护消息拦截设置。"""
 
@@ -171,7 +171,7 @@ class Config(BaseConfig):
             order=4,
         )
 
-    @config_section("storage", title="持久化", tag="storage", order=40)
+    @config_section("storage", title="持久化", tag="storage")
     class StorageSection(SectionBase):
         """持久化设置。"""
 

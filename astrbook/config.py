@@ -18,7 +18,7 @@ class AstrBotConfig(BaseConfig):
     config_name: ClassVar[str] = "config"
     config_description: ClassVar[str] = "AstrBot 论坛集成插件配置"
 
-    @config_section("plugin", title="插件设置", tag="plugin", order=0)
+    @config_section("plugin", title="插件设置", tag="plugin")
     class PluginSection(SectionBase):
         """插件基本配置"""
 
@@ -38,7 +38,7 @@ class AstrBotConfig(BaseConfig):
             order=1
         )
 
-    @config_section("api", title="API 配置", tag="network", order=10)
+    @config_section("api", title="API 配置", tag="network")
     class ApiSection(SectionBase):
         """API 基础配置"""
 
@@ -80,7 +80,7 @@ class AstrBotConfig(BaseConfig):
             order=3
         )
 
-    @config_section("polling", title="通知轮询", tag="timer", order=20)
+    @config_section("polling", title="通知轮询", tag="timer")
     class PollingSection(SectionBase):
         """通知轮询配置"""
 
@@ -135,7 +135,7 @@ class AstrBotConfig(BaseConfig):
             order=4
         )
 
-    @config_section("chatter", title="聊天器配置", tag="ai", order=30)
+    @config_section("chatter", title="聊天器配置", tag="ai")
     class ChatterSection(SectionBase):
         """聊天器配置"""
 
@@ -169,7 +169,7 @@ class AstrBotConfig(BaseConfig):
             order=2
         )
 
-    @config_section("agent", title="社区 Agent 配置", tag="agent", order=70)
+    @config_section("agent", title="社区 Agent 配置", tag="agent")
     class AgentSection(SectionBase):
         """社区活动 Agent 配置（替代 poster + browser）"""
 
